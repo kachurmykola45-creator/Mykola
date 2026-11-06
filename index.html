@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Maps</title>
+    <!-- Стилі Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: #ffffff;
+        }
+
+        /* Верхня панель з пошуком */
+        .top-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 55px;
+            background: #1e293b;
+            border-bottom: 2px solid #3b82f6;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 8px;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Круглий логотип Telegram */
+        .app-logo {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2AABEE;
+            border: 1.5px solid #60a5fa;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px rgba(42, 171, 238, 0.4);
+        }
+
+        .app-logo svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        .app-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* Контейнер поля пошуку */
+        .search-box-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 34px;
+            background: #334155;
+            border: 1px solid #3b82f6;
+            border-radius: 18px;
+            padding: 0 30px 0 12px;
+            color: #ffffff;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 6px rgba(96, 165, 250, 0.5);
+            background: #1e293b;
+        }
+
+        .search-input::placeholder {
+            color: #94a3b8;
+        }
+
+        /* Кнопка очищення (хрестик) */
+        .clear-btn {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+            line-height: 1;
+        }
+
+        /* Випадаючий список результатів автодоповнення */
+        .search-results {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            right: 0;
+            background: #1e293b;
+            border: 1px solid #3b82f6;
+            border-radius: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 1001;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+
+        .search-item {
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #e2e8f0;
+            cursor: pointer;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-item:hover, .search-item:active {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+
+        /* Контейнер карти */
+        #map {
+            width: 100%;
+            height: calc(100% - 125px);
+            margin-top: 55px;
+        }
+
+        /* Панель шарів */
+        .layer-selector {
+            position: absolute;
+            top: 70px;
+            right: 15px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 2px solid #3b82f6;
+            border-radius: 12px;
+            padding: 8px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .layer-btn {
+            background-color: #334155;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-align: left;
+        }
+
+        .layer-btn.active {
+            background-color: #2563eb;
+            border-left: 3px solid #60a5fa;
+        }
+
+        /* Кнопка геолокації */
+        .geo-btn {
+            position: absolute;
+            top: 200px;
+            right: 15px;
+            background: #2563eb;
+            color: white;
+            border: 2px solid #60a5fa;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            transition: background 0.2s;
+        }
+
+        .geo-btn:active {
+            background-color: #1d4ed8;
+            transform: scale(0.96);
+        }
+
+        /* Нижня панель */
+        .bottom-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 70px;
+            background: #1e293b;
+            border-top: 3px solid #3b82f6;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 15px;
+            z-index: 1000;
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-btn {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 2px solid #1d4ed8;
+        }
+
+        .menu-btn:active {
+            background-color: #1d4ed8;
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Верхня панель з оновленим пошуком після Telegram Maps -->
+    <div class="top-panel">
+        <div class="app-logo">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20.665 3.717c.611-.252 1.24.27 1.076.907l-3.327 15.65c-.143.673-.836.995-1.428.66l-4.731-2.678-2.28 2.21c-.4.388-1.075.105-1.075-.452v-3.525l9.967-9.014c.264-.239-.06-.605-.382-.43L6.037 13.56l-3.957-1.326c-.716-.24-.707-1.25.014-1.478L20.665 3.717z" fill="#ffffff"/>
+            </svg>
+        </div>
+        <span class="app-title">Telegram Maps</span>
+
+        <!-- Інтерактивне поле пошуку -->
+        <div class="search-box-container">
+            <input type="text" id="search-input" class="search-input" placeholder="Пошук міста чи села..." oninput="onSearchInput(this.value)">
+            <button id="clear-btn" class="clear-btn" onclick="clearSearch()">✕</button>
+            <div id="search-results" class="search-results"></div>
+        </div>
+    </div>
+
+    <!-- Меню вибору стилів -->
+    <div class="layer-selector">
+        <button class="layer-btn active" id="btn-streets" onclick="setLayer('streets')">🗺 Звичайна карта</button>
+        <button class="layer-btn" id="btn-sat" onclick="setLayer('satellite')">🛰 Супутник</button>
+        <button class="layer-btn" id="btn-topo" onclick="setLayer('topo')">⛰ Ландшафт</button>
+    </div>
+
+    <!-- Кнопка геолокації -->
+    <button class="geo-btn" onclick="findMe()">🎯 Моє місце</button>
+
+    <!-- Карта -->
+    <div id="map"></div>
+
+    <!-- Нижня панель -->
+    <div class="bottom-panel">
+        <button class="menu-btn" onclick="focusRegion('all')">📍 Вся обл.</button>
+        <button class="menu-btn" onclick="focusRegion('viznytsia')">⛰ Вижниц.</button>
+        <button class="menu-btn" onclick="focusRegion('chernivtsi')">🏛 Чернів.</button>
+        <button class="menu-btn" onclick="focusRegion('dnister')">🌊 Дністр.</button>
+    </div>
+
+    <!-- Скрипт Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map', {
+            zoomControl: false,
+            minZoom: 2,
+            maxZoom: 19
+        }).setView([48.2921, 25.9358], 9);
+
+        var streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'OpenStreetMap',
+            maxZoom: 19
+        });
+
+        var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            attribution: 'Google',
+            maxZoom: 20
+        });
+
+        var topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: 'OpenTopoMap',
+            maxZoom: 17
+        });
+
+        streetsLayer.addTo(map);
+        var currentLayer = streetsLayer;
+
+        function setLayer(type) {
+            map.removeLayer(currentLayer);
+            
+            document.getElementById('btn-streets').classList.remove('active');
+            document.getElementById('btn-sat').classList.remove('active');
+            document.getElementById('btn-topo').classList.remove('active');
+
+            if (type === 'streets') {
+                currentLayer = streetsLayer;
+                document.getElementById('btn-streets').classList.add('active');
+            } else if (type === 'satellite') {
+                currentLayer = satelliteLayer;
+                document.getElementById('btn-sat').classList.add('active');
+            } else if (type === 'topo') {
+                currentLayer = topoLayer;
+                document.getElementById('btn-topo').classList.add('active');
+            }
+            currentLayer.addTo(map);
+        }
+
+        function findMe() {
+            if (!navigator.geolocation) {
+                alert("Пристрій не підтримує геолокацію.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    var lat = position.coords.latitude;
+                    var lng = position.coords.longitude;
+                    map.setView([lat, lng], 14);
+                },
+                function(error) {
+                    alert("Увімкніть геолокацію на пристрої.");
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        function focusRegion(type) {
+            if (type === 'viznytsia') {
+                map.setView([48.25, 25.18], 11); 
+            } else if (type === 'chernivtsi') {
+                map.setView([48.30, 25.92], 10); 
+            } else if (type === 'dnister') {
+                map.setView([48.45, 26.85], 10); 
+            } else {
+                map.setView([48.2921, 25.9358], 9); 
+            }
+        }
+
+        // Логіка швидкого живого пошуку (OpenStreetMap Nominatim API)
+        var debounceTimer;
+
+        function onSearchInput(query) {
+            var clearBtn = document.getElementById('clear-btn');
+            var resultsBox = document.getElementById('search-results');
+
+            if (query.trim() === "") {
+                clearSearch();
+                return;
+            }
+
+            clearBtn.style.display = 'block';
+            clearTimeout(debounceTimer);
+
+            // Виклик під час введення з найпершої букви
+            debounceTimer = setTimeout(function() {
+                fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) + '&limit=6&addressdetails=1')
+                    .then(response => response.json())
+                    .then(data => {
+                        resultsBox.innerHTML = '';
+                        if (data.length === 0) {
+                            resultsBox.style.display = 'none';
+                            return;
+                        }
+
+                        data.forEach(item => {
+                            var div = document.createElement('div');
+                            div.className = 'search-item';
+                            div.innerHTML = '📍 ' + item.display_name;
+                            div.onclick = function() {
+                                selectLocation(item.lat, item.lon, item.display_name);
+                            };
+                            resultsBox.appendChild(div);
+                        });
+
+                        resultsBox.style.display = 'block';
+                    })
+                    .catch(() => {
+                        resultsBox.style.display = 'none';
+                    });
+            }, 250);
+        }
+
+        function selectLocation(lat, lon, name) {
+            map.setView([lat, lon], 13);
+            document.getElementById('search-input').value = name.split(',')[0];
+            document.getElementById('search-results').style.display = 'none';
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('clear-btn').style.display = 'none';
+            document.getElementById('search-results').innerHTML = '';
+            document.getElementById('search-results').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
